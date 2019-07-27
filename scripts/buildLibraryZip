@@ -1,0 +1,142 @@
+#!/usr/bin/env python3
+import glob
+import py_compile
+import zipfile
+import argparse
+import os.path
+import datetime
+
+parser = argparse.ArgumentParser(description='Compile and zip library data')
+parser.add_argument('input', help='Import library path')
+parser.add_argument('output', help='Output zip file')
+parser.add_argument('-c', "--compile", help='Compile python files before zipping', action='store_true')
+parser.add_argument('-o', "--optimize", default=2, help='Compile optimization level', type=int)
+parser.add_argument('-z', "--compression", default="bzip2", help='Compression type')
+parser.add_argument('-l', "--compressionlevel", default=9, help='Compression level', type=int)
+parser.add_argument('-i', "--ignoresfile", default=None, help='Ignores file list')
+
+args = parser.parse_args()
+
+class IgnoreList:
+    IGNORE_BASENAME = "@"
+    IGNORE_EXTENSION = "."
+    IGNORE_ABSOLUTE = "="
+    IGNORE_START = "<"
+    IGNORE_END = ">"
+    IGNORE_VALID = [
+        IGNORE_BASENAME,
+        IGNORE_EXTENSION,
+        IGNORE_ABSOLUTE,
+        IGNORE_START,
+        IGNORE_END,
+    ]
+    def __init__(self):
+        self.ignores = []
+    
+    def shouldIgnore(self, path):
+        bn = os.path.basename(path)
+        ext = None
+        
+        if "." in bn:
+            ext = bn.split(".")[-1]
+        
+        for ignore in self.ignores:
+            if ignore[0] == self.IGNORE_ABSOLUTE:
+                if path == ignore[1]:
+                    return True
+                
+            elif ignore[0] == self.IGNORE_BASENAME:
+                if bn == ignore[1]:
+                    return True
+                
+            elif ignore[0] == self.IGNORE_EXTENSION:
+                if ext == ignore[1]:
+                    return True
+                
+            elif ignore[0] == self.IGNORE_START:
+                if path.startswith(ignore[1]):
+                    return True
+                
+            elif ignore[0] == self.IGNORE_END:
+                if path.endswith(ignore[1]):
+                    return True
+                
+        return False
+    
+    def addIgnore(self, Type, value):
+        self.ignores.append((Type, value))
+    
+    def findIgnores(self, Type):
+        for ignore in self.ignores:
+            if ignore[0] == Type:
+                yield ignore[1]
+    @property
+    def ignores_start(self):
+        self.findIgnores(self.IGNORE_START)
+    
+    @classmethod
+    def load(cls, file):
+        with open(file, "r") as f:
+            return cls.loads(f.read())
+        
+    @classmethod
+    def loads(cls, data):
+        il = cls()
+        lines = data.splitlines()
+        for line in lines:
+            if len(line)>1:
+                if line[0] == "#":
+                    pass
+                elif line[0] in cls.IGNORE_VALID:
+                    if len(line)>2:
+                        if line[1] == " ":
+                            il.addIgnore(line[0], line[2:])
+                        elif line[1] == " ":
+                            il.addIgnore(line[0], line[1:])
+        
+        return il
+
+ignores = None
+if args.ignoresfile:
+    ignores = IgnoreList.load(args.ignoresfile)
+
+libzip = zipfile.ZipFile(
+    args.output,
+    mode="w",
+    compression={
+        "stored": zipfile.ZIP_STORED,
+        "deflated": zipfile.ZIP_DEFLATED,
+        "bzip2": zipfile.ZIP_BZIP2,
+        "lzma": zipfile.ZIP_LZMA,
+    }[args.compression.lower()],
+    allowZip64=False,
+    compresslevel=args.compressionlevel
+)
+
+dirLen = len(args.input)+1
+for file in glob.iglob(os.path.join(args.input, "**"), recursive=True):
+    if "/__pycache__/" not in file and os.path.isfile(file):
+        if args.ignoresfile:
+            if ignores.shouldIgnore(file[dirLen:]):
+                continue
+        
+        ftype = os.path.basename(file).split(".")[-1]
+        data = b""
+        if ftype == "py":
+            if args.compile:
+                fileToAdd = py_compile.compile(file, optimize=args.optimize)
+                with open(fileToAdd, "rb") as f:
+                    data = f.read()
+            else:
+                with open(file, "rb") as f:
+                    data = f.read()
+            file = zipfile.ZipInfo(file[dirLen:]+("c" if args.compile else ""), datetime.datetime.utcfromtimestamp(os.path.getmtime(file)).timetuple())
+        elif ftype == "pyc":
+            print("Skipping: {}".format(file[dirLen:]))
+            continue
+        else:
+            print("Adding unknown type: {}".format(file[dirLen:]))
+            with open(file, "rb") as f:
+                data = f.read()
+            file = zipfile.ZipInfo(file[dirLen:], datetime.datetime.utcfromtimestamp(os.path.getmtime(file)).timetuple())
+        libzip.writestr(file, data)

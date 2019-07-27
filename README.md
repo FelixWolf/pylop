@@ -1,35 +1,27 @@
-# Python Embedded Example Project
+# Pylop
 
-This is an example project using mebedded **[python 3.8](https://github.com/python/cpython)** in C++ console application using CMake. This example project also contains **[pybind11](https://github.com/pybind/pybind11)** library for easy binding between C++ and python. 
+Single file python script executable maker thingermcbob.
 
-Tested on Windows 10 with Visual Studio 2013, 2015, and 2017 (both x86 and x64). Also tested on Ubuntu with GCC (x64).
-
-**Note this example has nothing to do with embedding C++ in python! This is the other way around! Embeding python in C++.**
+Python version: 3.8
 
 ## About
 
-Normally, you have a python installed in your system and then you can launch python scripts from command line. What if you want to create C++ application, but want to use python scripts (for example as modding for games)? One option is to let the user install python on their system and then install your app. No problem there, except, you are forcing the user to modify their system. Additonally, you can never guarantee that the user will install the specific python version (2.7 or 3.8) you require. Even if all of that is sorted out, the python that will get run will probably need third party packages (or you need to explicitly disable some packages), this can't be done easily.
+This is designed to do the following:
+1. Take your python script(s) as a module
+2. Put it in a "zip"
+3. Append it to a executable
+4. Now you have a single executable file that you can send to people without having them install python
 
-What if we can embed entire python in C++ executable? This way, the user won't have to install python on their system nor additional dependencies. Everything will be bundled up in the executable. 
+## Method
 
-This project comes with cpython 3.8 (as a git submodule) and pybind11. Once you build the project, your build folder will look like this:
+1. Built "Pylop" template executable will search the end of it's binary for a 4 byte magic number.
+2. If magic number is found, seek back 4 bytes, this is the absolute position where the "zip" containing the files to load.
+3. Seek to said position and read 4 bytes, this is the length of the zip.
+4. Add a hook to the importlib to manage loading from this embedded zip.
 
-```
-python-embedded-example-project/
-  build/
-    Release/
-      PythonEmbeddedExample.exe
-      app/
-        example.py
-      lib/
-        a lot of Python standard library files
-```
+## Planned features
 
-The script files (such as example.py) are copied to the build directory from `src/app` and the python standard libraries are copied over from git submodule located in `python-embedded-example-project/libs/cpython/Lib`. You can't get rid of those standard libraries! Python needs them to initialise. However, you could limit the standard libraries by only selectively copying over the ones you need.
-
-When the executable runs, it will load an `example` module and creates an instance of `Example` class from `example.py` file. That's all it does.
-
-**The python PATH is limited only to the app and lib folder located next to the executable.** The embedded python won't have any access to installed packages in your operating system. You will have to include them in any of those two folders.
+* meta.info embedded in zip, allow for changing of various executable parameters(Hide or show console window, etc)
 
 ## Requirements
 
@@ -40,8 +32,8 @@ Visual Studio 2013 (or newer) or Linux with GCC. MinGW is sadly not supported, a
 Don't forget to initialise and update the submodules! The cpython is +200MB so it may take some time to during `git submodule update`.
 
 ```
-git clone https://github.com/matusnovak/python-embedded-example-project 
-cd python-embedded-example-project 
+git clone https://github.com/FelixWolf/pylop
+cd pylop
 git submodule init
 git submodule update --progress
 ```
@@ -57,19 +49,19 @@ cd build
 cmake .. -G "Visual Studio 15 2017" -DCMAKE_BUILD_TYPE=Debug
 ```
 
-Then open the generated solution file "PythonEmbeddedExample.sln" in the build folder. You should see the following projects:
+Then open the generated solution file "Pylop.sln" in the build folder. You should see the following projects:
 
 * **ALL_BUILD** - Building this will build all projects
 * **CPYTHON** - The embedded python project
 * **PYBIND** - The pybind11 library for binding
 * **PythonEmbeddedExample** - This is the example project
 
-Build the PythonEmbeddedExample and then run the `PythonEmbeddedExample.exe` from command line. That's all.
+Build the Pylop and then use `generateApp.py --binary=pylop --library=lib.zip --source=whatever` from command line.
 
 ## Build using GCC on Linux
 
 ```
-cd python-embedded-example-project 
+cd pylop
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug
@@ -81,25 +73,19 @@ Then build the example by running:
 make
 ```
 
-The `PythonEmbeddedExample` executable will be generated.
+The `Pylop` executable will be generated.
 
 ## Changing python version
 
-At the time of the creation of this example, Python 3.8 was just released. The cpython submodule is frozen to commit `491bbedc209fea314a04cb3015da68fb0aa63238`. If you want to change python version, change the `branch` in `.gitmodules` to `branch = 2.7` or any other version. See available branches at: <https://github.com/python/cpython>
+This project is using the latest stable version of python avaliable.
+At the time of writing, this is version `3.8`.
+If you want to change python version, change the `branch` in `.gitmodules` to `branch = 3.7` or any other version. See available branches at: <https://github.com/python/cpython>
 
-## Example output
+## Credits
 
-Example output of the `PythonEmbeddedExample` executable.
+(These are credits, this does not mean they endorse this project)
 
-```
-Python PATH set to: C:\Users\matus\Documents\cpp\python-embedded-example-project\build\Debug\lib;C:\Users\matus\Documents\cpp\python-embedded-example-project\build\Debug\app;
-Importing module...Initializing class...
-Example constructor with msg: Hello World
-Got msg back on C++ side: Hello World
-```
-
-## fatal error LNK1104: cannot open file 'python38_d.lib'
-
-This happens when you run cmake with `-DCMAKE_BUILD_TYPE=MinSizeRel` and you are compiling the solution in Visual Studio as Debug. Simply, in Visual Studio, change the configuration to the one used in `CMAKE_BUILD_TYPE`.
-
-This happens because the cpython has been built via `CMAKE_BUILD_TYPE` but your Visual Studio is looking for a debug version of the python library (or the other way around).
+* [Matusnovak](https://github.com/matusnovak) for the [Python embedded example project](https://github.com/matusnovak/python-embedded-example-project) which really helped me get a head start on embedding python when I had no idea what I was doing(I still don't know really what I am doing!).
+* Everyone at [Python Software Foundation](https://python.org) for their amazing work on the Python programming language.
+* God, Satan, Talos, or whatever deity or atoms that collided to create the universe.
+* Mankind for creating frustrations in coding.

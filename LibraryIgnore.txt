@@ -1,0 +1,36 @@
+#Ignores file
+#Syntax:
+#< startswith
+#> endswith
+#@ basename
+#. extension
+#= absolute
+
+#Ignore test files
+< lib2to3/tests/
+< distutils/tests/
+< sqlite3/test/
+< test/
+< tkinter/test/
+< unittest/test/
+< turtledemo/
+
+#Ignore readmes
+@ README.txt
+@ README
+@ README.ctypes
+. rst
+
+#Ignore executables
+. exe
+. bat
+@ fetch_macholib
+
+#Unlikely to use libraries
+< distutils/
+< idlelib/
+< ensurepip/
+< lib2to3/
+< venv/
+< pydoc_data/
+< pydoc/

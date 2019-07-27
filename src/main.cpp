@@ -48,26 +48,41 @@ int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
 
-    // Get executable dir and build python PATH variable
-    const auto exeDir = getExecutableDir();
-#ifdef IS_WINDOWS
-    const auto pythonHome = exeDir + L"\\lib";
-    const auto pythonPath = exeDir + L"\\lib;" + exeDir + L"\\app;";
-#else
-    const auto pythonHome = exeDir + L"/lib";
-    const auto pythonPath = exeDir + L"/lib:" + exeDir + L"/app";
-#endif
-
-    // Initialize python
-    Py_OptimizeFlag = 1;
-    Py_SetProgramName(L"PythonEmbeddedExample");
-    Py_SetPath(pythonPath.c_str());
-    Py_SetPythonHome(pythonHome.c_str());
-
-    std::wcout << "Python PATH set to: " << pythonPath << std::endl;
-
+    Py_OptimizeFlag = 2;
+    Py_SetProgramName(L"PythonEmbedded");
+    Py_SetPath(L"./lib.zip");
+    Py_SetPythonHome(L"./lib.zip");
+    
+    PyConfig config;
+    PyStatus status;
+    
+    status = PyConfig_InitPythonConfig(&config);
+    if (PyStatus_Exception(status)) {
+        return EXIT_FAILURE;
+    }
+    
+    config._init_main = 0;
+    config.pathconfig_warnings = 0;
+    
+    status = Py_InitializeFromConfig(&config);
+    PyConfig_Clear(&config);
+    if (PyStatus_Exception(status)) {
+        //Py_ExitStatusException(status);
+    }
+    
+    int res = PyRun_SimpleString(
+        "import sys; "
+        "print('Run Python code before _Py_InitializeMain', file=sys.stderr)");
+    if (res < 0) {
+        exit(1);
+    }
+    
+    status = _Py_InitializeMain();
+    if (PyStatus_Exception(status)) {
+        //Py_ExitStatusException(status);
+    }
+    
     try {
-        py::scoped_interpreter guard{};
 
         // Disable build of __pycache__ folders
         py::exec(R"(
@@ -80,9 +95,9 @@ int main(int argc, char** argv) {
         // The app/example script that is being imported is from the actual build folder!
         // Cmake will copy the python scripts after you have compiled the source code.
         std::cout << "Importing module..." << std::endl;
-        auto example = py::module::import("example");
+        //auto example = py::module::import("io");
 
-        std::cout << "Initializing class..." << std::endl;
+        /*std::cout << "Initializing class..." << std::endl;
         const auto myExampleClass = example.attr("Example");
         auto myExampleInstance = myExampleClass("Hello World"); // Calls the constructor
         // Will print in the terminal window:
@@ -90,10 +105,11 @@ int main(int argc, char** argv) {
 
         const auto msg = myExampleInstance.attr("getMsg")(); // Calls the getMsg
         std::cout << "Got msg back on C++ side: " << msg.cast<std::string>() << std::endl;
+        */
     } catch (std::exception& e) {
         std::cerr << "Something went wrong: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
-
+    Py_Finalize();
     return EXIT_SUCCESS;
 }

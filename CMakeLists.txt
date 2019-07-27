@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.1)
 include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
-project (PythonEmbeddedExample)
+project (Pylop)
 
 # Check for C++11
 set (CMAKE_CXX_STANDARD 11)
@@ -38,8 +38,8 @@ else()
   ExternalProject_Add(CPYTHON
     DOWNLOAD_COMMAND ""
     SOURCE_DIR ${CMAKE_SOURCE_DIR}/libs/cpython
-    CONFIGURE_COMMAND cd ${CMAKE_SOURCE_DIR}/libs/cpython && ./configure --disable-static --enable-shared 
-    BUILD_COMMAND cd ${CMAKE_SOURCE_DIR}/libs/cpython && make
+    CONFIGURE_COMMAND cd ${CMAKE_SOURCE_DIR}/libs/cpython && ./configure LDFLAGS=-static --disable-shared
+    BUILD_COMMAND cd ${CMAKE_SOURCE_DIR}/libs/cpython && make LDFLAGS=-static
     INSTALL_COMMAND ""
     TEST_COMMAND ""
   )
@@ -122,8 +122,36 @@ add_custom_command(
 
 # Copy the Python stdlib into the build folder (needed by the embedded python)
 add_custom_command(
-  TARGET ${PROJECT_NAME} 
+  TARGET ${PROJECT_NAME}
   POST_BUILD
-  COMMAND ${CMAKE_COMMAND} 
+  COMMAND ${CMAKE_COMMAND}
   -E copy_directory ${CPYTHON_STDLIB_DIR} $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib
 )
+
+#Compile the zip file
+add_custom_target(PackLibrary ALL)
+if(CMAKE_BUILD_TYPE STREQUAL Debug)
+    add_custom_command(
+        TARGET PackLibrary
+        DEPENDS $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/buildLibraryZip $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib.zip --ignoresfile="${CMAKE_CURRENT_SOURCE_DIR}/LibraryIgnore.txt" --compression stored --compressionlevel 0 --optimize 0
+    )
+elseif(CMAKE_BUILD_TYPE STREQUAL Release)
+    add_custom_command(
+        TARGET PackLibrary
+        DEPENDS $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/buildLibraryZip $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib.zip --ignoresfile="${CMAKE_CURRENT_SOURCE_DIR}/LibraryIgnore.txt" --compile --compression lzma --compressionlevel 9 --optimize 2
+    )
+elseif(CMAKE_BUILD_TYPE STREQUAL RelWithDebInfo)
+    add_custom_command(
+        TARGET PackLibrary
+        DEPENDS $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/buildLibraryZip $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib.zip --ignoresfile="${CMAKE_CURRENT_SOURCE_DIR}/LibraryIgnore.txt" --compile --compression lzma --compressionlevel 9 --optimize 1
+    )
+elseif(CMAKE_BUILD_TYPE STREQUAL MinSizeRel)
+    add_custom_command(
+        TARGET PackLibrary
+        DEPENDS $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib
+        COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/buildLibraryZip $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib $<TARGET_FILE_DIR:${PROJECT_NAME}>/lib.zip --ignoresfile="${CMAKE_CURRENT_SOURCE_DIR}/LibraryIgnore.txt" --compile --compression lzma --compressionlevel 9 --optimize 2
+    )
+endif()
